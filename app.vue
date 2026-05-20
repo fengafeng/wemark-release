@@ -1,7 +1,6 @@
 <template>
   <div :class="isDev ? 'debug-screens' : ''" class="flex flex-col h-screen">
-    <!-- Electron custom titlebar drag area -->
-    <div v-if="isElectron" class="electron-titlebar" />
+    <!-- Electron custom titlebar is now handled by TitleBar component inside dashboard layout -->
 
     <NuxtLayout>
       <NuxtPage />
@@ -31,11 +30,4 @@ if (!isElectron.value && !isChromeBrowser()) {
 
 <style>
 @import 'style.css';
-
-.electron-titlebar {
-  height: 32px;
-  -webkit-app-region: drag;
-  user-select: none;
-  flex-shrink: 0;
-}
 </style>

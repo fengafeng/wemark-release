@@ -12,7 +12,7 @@ const COOKIE_TTL = 60 * 60 * 24 * 4; // 4 days
 export async function setMpCookie(key: CookieKVKey, data: CookieKVValue): Promise<boolean> {
   try {
     // Use secure storage (encrypted in Electron, KV fallback in Web)
-    return await setSecureCookie(key, data, COOKIE_TTL);
+    return await setSecureCookie<CookieKVValue>(key, data, COOKIE_TTL);
   } catch (err) {
     console.error('setMpCookie failed:', err);
     return false;
@@ -22,7 +22,7 @@ export async function setMpCookie(key: CookieKVKey, data: CookieKVValue): Promis
 export async function getMpCookie(key: CookieKVKey): Promise<CookieKVValue | null> {
   try {
     // Use secure storage (encrypted in Electron, KV fallback in Web)
-    return await getSecureCookie(key);
+    return await getSecureCookie<CookieKVValue>(key);
   } catch (err) {
     console.error('getMpCookie failed:', err);
     return null;

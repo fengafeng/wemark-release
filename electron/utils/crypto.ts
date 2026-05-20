@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { EncryptedData } from '../../types/secure-store';
 
 /**
  * AES-256-GCM encryption utilities for secure credential storage.
@@ -14,17 +15,6 @@ const TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
 const PBKDF2_ITERATIONS = 100000;
 const CURRENT_VERSION = 1;
-
-export interface EncryptedData {
-  /** Base64 encoded ciphertext */
-  ciphertext: string;
-  /** Base64 encoded initialization vector (12 bytes) */
-  iv: string;
-  /** Base64 encoded GCM authentication tag (16 bytes) */
-  tag: string;
-  /** Encryption scheme version for future migration support */
-  version: number;
-}
 
 /**
  * Encrypt a plaintext string using AES-256-GCM.

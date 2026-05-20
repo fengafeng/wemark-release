@@ -11,6 +11,11 @@ const msg = ref('');
 const checkTimer = ref<number | null>(null);
 
 const loginAccount = useLoginAccount();
+const { addAccount } = useLoginAccountManager();
+
+const emit = defineEmits<{
+  (e: 'login-success', account: LoginAccount): void;
+}>();
 
 onMounted(() => {
   getQrcode();
@@ -114,6 +119,12 @@ async function bizLogin() {
 
     msg.value = '登录成功';
     loginAccount.value = resp;
+
+    // Add to multi-account system (use nickname as a fallback identifier since authKey is server-managed)
+    await addAccount('', resp);
+
+    // Emit login-success event
+    emit('login-success', resp);
 
     closeModal();
   } catch (e: any) {

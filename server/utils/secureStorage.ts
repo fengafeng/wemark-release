@@ -14,8 +14,6 @@
  * and the KV copy is left in place (for safety; it can be cleaned up later).
  */
 
-import type { CookieKVValue } from '~/server/kv/cookie';
-
 /**
  * Check if the app is running inside Electron.
  */
@@ -143,14 +141,16 @@ export function cookieKey(authKey: string): string {
 
 /**
  * Read cookie data from secure storage.
+ * Uses a generic type parameter to avoid circular imports with cookie.ts.
  */
-export async function getSecureCookie(authKey: string): Promise<CookieKVValue | null> {
-  return secureGet<CookieKVValue>(cookieKey(authKey));
+export async function getSecureCookie<T = unknown>(authKey: string): Promise<T | null> {
+  return secureGet<T>(cookieKey(authKey));
 }
 
 /**
  * Write cookie data to secure storage.
+ * Uses a generic type parameter to avoid circular imports with cookie.ts.
  */
-export async function setSecureCookie(authKey: string, data: CookieKVValue, ttl?: number): Promise<boolean> {
+export async function setSecureCookie<T = unknown>(authKey: string, data: T, ttl?: number): Promise<boolean> {
   return secureSet(cookieKey(authKey), data, ttl);
 }
