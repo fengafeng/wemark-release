@@ -30,7 +30,17 @@ export class BaseDownloader {
   public readonly proxyManager: ProxyManager;
   protected events: Map<string, Callback[]>;
 
-  constructor(urls: string[], options: DownloadOptions = {}) {
+  // 快照相关
+  protected snapshotId: string | null;
+  protected snapshotType: DownloadType;
+  protected snapshotFakeid: string;
+  protected snapshotNickname: string;
+
+  constructor(
+    urls: string[],
+    options: DownloadOptions = {},
+    snapshot?: Partial<Pick<DownloadSnapshot, 'id' | 'type' | 'fakeid' | 'nickname' | 'completedUrls' | 'failedUrls' | 'deletedUrls'>>,
+  ) {
     this.validateInputs(urls);
 
     const proxies = (preferences.value as Preferences).privateProxyList || [];
@@ -47,6 +57,39 @@ export class BaseDownloader {
     this.isRunning = false;
     this.abortControllers = new Map();
     this.events = new Map();
+
+    // 快照初始化
+    this.snapshotId = snapshot?.id ?? null;
+    this.snapshotType = snapshot?.type ?? 'html';
+    this.snapshotFakeid = snapshot?.fakeid ?? '';
+    this.snapshotNickname = snapshot?.nickname ?? '';
+
+    // 如果从快照恢复，将已完成的 URL 加入 completed 集合
+    if (snapshot?.completedUrls?.length) {
+      for (const url of snapshot.completedUrls) {
+        this.completed.add(url);
+      }
+    }
+    if (snapshot?.failedUrls?.length) {
+      for (const url of snapshot.failedUrls) {
+        this.failed.add(url);
+      }
+    }
+    if (snapshot?.deletedUrls?.length) {
+      for (const url of snapshot.deletedUrls) {
+        this.deleted.add(url);
+      }
+    }
+
+    // 从快照恢复时，将已完成/失败/删除的 URL 从待下载列表中移除
+    if (snapshot?.completedUrls?.length || snapshot?.failedUrls?.length || snapshot?.deletedUrls?.length) {
+      const skipUrls = new Set([
+        ...(snapshot?.completedUrls ?? []),
+        ...(snapshot?.failedUrls ?? []),
+        ...(snapshot?.deletedUrls ?? []),
+      ]);
+      this.urls = this.urls.filter((url) => !skipUrls.has(url));
+    }
 
     this.options = {
       concurrency: options.concurrency ?? bestConcurrencyCount(proxies.length),
@@ -116,6 +159,13 @@ export class BaseDownloader {
       deleted: Array.from(this.deleted),
       proxy: this.proxyManager.getProxyStatus(),
     };
+  }
+
+  /**
+   * 获取快照 ID
+   */
+  public getSnapshotId(): string | null {
+    return this.snapshotId;
   }
 
   // 触发指定类型的监听器
@@ -192,5 +242,59 @@ export class BaseDownloader {
     if (!targetCredential) {
       throw new Error('目标公众号的 Credential 未设置');
     }
+  }
+
+  /**
+   * 保存当前快照到 IndexedDB
+   * 每个 URL 完成时调用，保证断点可恢复
+   */
+  protected async persistSnapshot(status: TaskStatus): Promise<void> {
+    if (!this.snapshotId) {
+      return;
+    }
+
+    const { updateSnapshot } = await import('~/store/v2/task-snapshot');
+
+    await updateSnapshot(this.snapshotId, {
+      completedUrls: Array.from(this.completed),
+      failedUrls: Array.from(this.failed),
+      deletedUrls: Array.from(this.deleted),
+      status,
+    });
+  }
+
+  /**
+   * 创建初始快照并保存到 IndexedDB
+   */
+  protected async createSnapshot(totalUrls: string[]): Promise<void> {
+    if (this.snapshotId) {
+      // 已有快照 ID（从快照恢复的场景），更新状态为 running
+      const { updateSnapshot } = await import('~/store/v2/task-snapshot');
+      await updateSnapshot(this.snapshotId, {
+        status: 'running',
+      });
+      return;
+    }
+
+    // 生成新的快照 ID
+    this.snapshotId = `${this.snapshotFakeid}:${this.snapshotType}:${Date.now()}`;
+
+    const { saveSnapshot } = await import('~/store/v2/task-snapshot');
+    const now = Date.now();
+    const snapshot: DownloadSnapshot = {
+      id: this.snapshotId,
+      type: this.snapshotType,
+      fakeid: this.snapshotFakeid,
+      nickname: this.snapshotNickname,
+      totalUrls,
+      completedUrls: Array.from(this.completed),
+      failedUrls: Array.from(this.failed),
+      deletedUrls: Array.from(this.deleted),
+      options: this.options,
+      createdAt: now,
+      updatedAt: now,
+      status: 'running',
+    };
+    await saveSnapshot(snapshot);
   }
 }

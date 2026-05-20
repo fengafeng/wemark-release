@@ -16,6 +16,7 @@ export async function deleteAccountData(ids: string[]): Promise<void> {
       'metadata',
       'resource',
       'resource-map',
+      'taskSnapshot',
     ],
     async () => {
       // todo: 调后台接口保存最近90天的接口调用情况
@@ -33,6 +34,7 @@ export async function deleteAccountData(ids: string[]): Promise<void> {
       db.metadata.where('fakeid').anyOf(ids).delete();
       db.resource.where('fakeid').anyOf(ids).delete();
       db['resource-map'].where('fakeid').anyOf(ids).delete();
+      db.taskSnapshot.where('fakeid').anyOf(ids).delete();
     }
   );
 }

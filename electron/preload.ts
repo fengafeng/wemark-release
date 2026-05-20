@@ -15,6 +15,7 @@ const electronAPI: ElectronAPI = {
     delete: (key: string) => ipcRenderer.invoke('store:delete', key),
     getEncrypted: (key: string) => ipcRenderer.invoke('store:getEncrypted', key),
     setEncrypted: (key: string, value: unknown) => ipcRenderer.invoke('store:setEncrypted', key, value),
+    deleteEncrypted: (key: string) => ipcRenderer.invoke('store:deleteEncrypted', key),
   },
 
   // --- File System ---

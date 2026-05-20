@@ -2,6 +2,7 @@ import { formatElapsedTime } from '#shared/utils/helpers';
 import toastFactory from '~/composables/toast';
 import type { Metadata } from '~/store/v2/metadata';
 import { Downloader } from '~/utils/download/Downloader';
+import type { DownloaderSnapshotOptions } from '~/utils/download/Downloader';
 import type { DownloaderStatus } from '~/utils/download/types';
 
 export interface DownloadArticleOptions {
@@ -34,7 +35,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
   let downloader: Downloader | null = null;
 
   // 抓取文章内容(html)
-  async function downloadArticleHTML(urls: string[]) {
+  async function downloadArticleHTML(urls: string[], snapshotOptions?: DownloaderSnapshotOptions) {
     if (urls.length === 0) {
       toast.warning('提示', '请先选择文章');
       return;
@@ -44,7 +45,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
       loading.value = true;
       cleanupDownloader();
 
-      downloader = new Downloader(urls);
+      downloader = new Downloader(urls, {}, snapshotOptions);
       downloader.on('download:progress', (url: string, success: boolean, status: DownloaderStatus) => {
         console.debug(
           `进度: (进行中:${status.pending.length} / 已完成:${status.completed.length} / 已失败:${status.failed.length} / 已删除:${status.deleted.length})`
@@ -91,7 +92,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
   }
 
   // 抓取文章阅读量、点赞量等元数据
-  async function downloadArticleMetadata(urls: string[]) {
+  async function downloadArticleMetadata(urls: string[], snapshotOptions?: DownloaderSnapshotOptions) {
     if (urls.length === 0) {
       toast.warning('提示', '请先选择文章');
       return;
@@ -101,7 +102,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
       loading.value = true;
       cleanupDownloader();
 
-      downloader = new Downloader(urls);
+      downloader = new Downloader(urls, {}, snapshotOptions);
       downloader.on('download:progress', (url: string, success: boolean, status: DownloaderStatus) => {
         console.debug(
           `进度: (进行中:${status.pending.length} / 已完成:${status.completed.length} / 已失败:${status.failed.length} / 已删除:${status.deleted.length})`
@@ -147,7 +148,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
   }
 
   // 抓取文章留言数据
-  async function downloadArticleComment(urls: string[]) {
+  async function downloadArticleComment(urls: string[], snapshotOptions?: DownloaderSnapshotOptions) {
     if (urls.length === 0) {
       toast.warning('提示', '请先选择文章');
       return;
@@ -157,7 +158,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
       loading.value = true;
       cleanupDownloader();
 
-      downloader = new Downloader(urls);
+      downloader = new Downloader(urls, {}, snapshotOptions);
       downloader.on('download:progress', (url: string, success: boolean, status: DownloaderStatus) => {
         console.debug(
           `进度: (进行中:${status.pending.length} / 已完成:${status.completed.length} / 已失败:${status.failed.length} / 已删除:${status.deleted.length})`
@@ -191,7 +192,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
   }
 
   // 修复单篇文章fakeid
-  async function fixSingleFakeidTask(urls: string[]) {
+  async function fixSingleFakeidTask(urls: string[], snapshotOptions?: DownloaderSnapshotOptions) {
     if (urls.length === 0) {
       toast.warning('提示', '请先选择文章');
       return;
@@ -201,7 +202,7 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
       loading.value = true;
       cleanupDownloader();
 
-      downloader = new Downloader(urls);
+      downloader = new Downloader(urls, {}, snapshotOptions);
       downloader.on('download:progress', (url: string, success: boolean, status: DownloaderStatus) => {
         console.debug(
           `进度: (进行中:${status.pending.length} / 已完成:${status.completed.length} / 已失败:${status.failed.length})`
@@ -237,6 +238,40 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
     }
   }
 
+  /**
+   * 从快照恢复下载任务
+   * 将快照中未完成的 URL 列表传入 Downloader，并附带快照信息
+   */
+  async function resumeFromSnapshot(snapshot: DownloadSnapshot) {
+    // 计算待下载的 URL：totalUrls 中去除已完成/已失败/已删除的
+    const doneUrls = new Set([
+      ...snapshot.completedUrls,
+      ...snapshot.failedUrls,
+      ...snapshot.deletedUrls,
+    ]);
+    const remainingUrls = snapshot.totalUrls.filter((url) => !doneUrls.has(url));
+
+    const snapshotOptions: DownloaderSnapshotOptions = {
+      id: snapshot.id,
+      type: snapshot.type,
+      fakeid: snapshot.fakeid,
+      nickname: snapshot.nickname,
+      completedUrls: snapshot.completedUrls,
+      failedUrls: snapshot.failedUrls,
+      deletedUrls: snapshot.deletedUrls,
+    };
+
+    if (snapshot.type === 'html') {
+      await downloadArticleHTML(remainingUrls, snapshotOptions);
+    } else if (snapshot.type === 'metadata') {
+      await downloadArticleMetadata(remainingUrls, snapshotOptions);
+    } else if (snapshot.type === 'comments') {
+      await downloadArticleComment(remainingUrls, snapshotOptions);
+    } else if (snapshot.type === 'fakeid') {
+      await fixSingleFakeidTask(remainingUrls, snapshotOptions);
+    }
+  }
+
   async function download(type: 'html' | 'metadata' | 'comment' | 'fakeid', urls: string[]) {
     if (type === 'html') {
       await downloadArticleHTML(urls);
@@ -269,5 +304,6 @@ export default (options: Partial<DownloadArticleOptions> = {}) => {
     total_count,
     download,
     stop,
+    resumeFromSnapshot,
   };
 };

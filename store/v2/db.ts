@@ -21,6 +21,7 @@ const db = new Dexie('exporter.wxdown.online') as Dexie & {
   metadata: EntityTable<Metadata, 'url'>;
   resource: EntityTable<ResourceAsset, 'url'>;
   'resource-map': EntityTable<ResourceMapAsset, 'url'>;
+  taskSnapshot: EntityTable<DownloadSnapshot, 'id'>;
 };
 
 db.version(1).stores({
@@ -49,6 +50,10 @@ db.version(2).stores({
 
 db.version(3).stores({
   debug: 'url, fakeid',
+});
+
+db.version(4).stores({
+  taskSnapshot: 'id, status, fakeid, createdAt, updatedAt',
 });
 
 export { db };

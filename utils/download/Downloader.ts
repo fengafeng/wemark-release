@@ -19,14 +19,32 @@ type DownloadType = 'html' | 'metadata' | 'comments' | 'fakeid';
 const credentials = useLocalStorage<ParsedCredential[]>('auto-detect-credentials:credentials', []);
 const preferences: Ref<Preferences> = usePreferences() as unknown as Ref<Preferences>;
 
+export interface DownloaderSnapshotOptions {
+  // 从哪个快照恢复（提供 id 表示恢复模式）
+  id?: string;
+  type?: DownloadType;
+  fakeid?: string;
+  nickname?: string;
+  completedUrls?: string[];
+  failedUrls?: string[];
+  deletedUrls?: string[];
+}
+
 export class Downloader extends BaseDownloader {
   // 下载的类型
   private downloadType: DownloadType = 'html';
 
   private isStopping: boolean = false;
 
-  constructor(urls: string[], options: DownloadOptions = {}) {
-    super(urls, options);
+  constructor(
+    urls: string[],
+    options: DownloadOptions = {},
+    snapshotOptions?: DownloaderSnapshotOptions,
+  ) {
+    super(urls, options, snapshotOptions);
+    if (snapshotOptions?.type) {
+      this.downloadType = snapshotOptions.type;
+    }
   }
 
   // 启动抓取任务
@@ -35,16 +53,21 @@ export class Downloader extends BaseDownloader {
       throw new Error('下载任务正在运行中，无需重复启动');
     }
     this.downloadType = type;
+    // 同步快照类型
+    this.snapshotType = type;
 
     this.isRunning = true;
     const start = Date.now();
     this.emit('download:begin');
+
     if (['metadata', 'comments'].includes(this.downloadType) && this.options.concurrency > 2) {
       // 需要Credential爬取的数据，最大并发量设置为2
       this.options.concurrency = 2;
     }
 
     try {
+      // 创建/恢复快照
+      await this.createSnapshot([...this.urls].reverse());
       await this.processDownloadQueue();
     } finally {
       this.isRunning = false;
@@ -55,8 +78,11 @@ export class Downloader extends BaseDownloader {
   }
 
   // 停止下载任务
-  public stop() {
+  public async stop() {
     this.isStopping = true;
+    // 标记快照为 paused
+    await this.persistSnapshot('paused');
+    this.emit('download:stop');
   }
 
   // 处理下载任务队列
@@ -81,6 +107,11 @@ export class Downloader extends BaseDownloader {
 
           // 下载任务结束，触发通知
           this.emit('download:progress', url, this.completed.has(url), this.getStatus());
+
+          // 每个 URL 完成时持久化快照（不阻塞主流程）
+          this.persistSnapshot(this.isRunning ? 'running' : 'paused').catch((err) => {
+            console.warn('持久化快照失败:', err);
+          });
         });
       }
 
@@ -90,20 +121,28 @@ export class Downloader extends BaseDownloader {
       }
     }
 
-    if (this.isStopping) {
-      this.emit('download:stop');
+    // 正常结束：标记快照为 completed
+    if (!this.isStopping) {
+      await this.persistSnapshot('completed');
     }
   }
 
   private async processTask(url: string) {
-    if (this.downloadType === 'html') {
-      return this.downloadHTMLTask(url);
-    } else if (this.downloadType === 'metadata') {
-      return this.downloadMetadataTask(url);
-    } else if (this.downloadType === 'comments') {
-      return this.downloadCommentsTask(url);
-    } else if (this.downloadType === 'fakeid') {
-      return this.fixSingleFakeidTask(url);
+    try {
+      if (this.downloadType === 'html') {
+        return await this.downloadHTMLTask(url);
+      } else if (this.downloadType === 'metadata') {
+        return await this.downloadMetadataTask(url);
+      } else if (this.downloadType === 'comments') {
+        return await this.downloadCommentsTask(url);
+      } else if (this.downloadType === 'fakeid') {
+        return await this.fixSingleFakeidTask(url);
+      }
+    } catch (error) {
+      // 任务异常中断时，标记快照为 interrupted
+      console.error('任务异常:', error);
+      await this.persistSnapshot('interrupted');
+      throw error;
     }
   }
 
@@ -116,6 +155,11 @@ export class Downloader extends BaseDownloader {
       this.pending.delete(url);
       this.failed.add(url);
       return;
+    }
+
+    // 同步 fakeid 到快照
+    if (!this.snapshotFakeid) {
+      this.snapshotFakeid = article.fakeid;
     }
 
     for (let attempt = 0; attempt < this.options.maxRetries; attempt++) {
@@ -161,6 +205,11 @@ export class Downloader extends BaseDownloader {
       this.pending.delete(url);
       this.failed.add(url);
       return;
+    }
+
+    // 同步 fakeid 到快照
+    if (!this.snapshotFakeid) {
+      this.snapshotFakeid = article.fakeid;
     }
 
     // 付费文章需要使用 credential 来获取完整内容
@@ -247,6 +296,11 @@ export class Downloader extends BaseDownloader {
       this.pending.delete(url);
       this.failed.add(url);
       return;
+    }
+
+    // 同步 fakeid 到快照
+    if (!this.snapshotFakeid) {
+      this.snapshotFakeid = article.fakeid;
     }
 
     // 检查 credentials
@@ -344,6 +398,11 @@ export class Downloader extends BaseDownloader {
       this.pending.delete(url);
       this.failed.add(url);
       return;
+    }
+
+    // 同步 fakeid 到快照
+    if (!this.snapshotFakeid) {
+      this.snapshotFakeid = article.fakeid;
     }
 
     // 检查 credentials

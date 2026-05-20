@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from 'electron';
 import path from 'node:path';
 import { startNitroServer } from './server';
 import { registerFileSystemHandlers } from './ipc/file-system';
-import { registerStoreHandlers } from './ipc/store';
+import { registerStoreHandlers, secureStoreBridge } from './ipc/store';
 import { registerUpdaterHandlers } from './ipc/updater';
 import { createTray } from './tray';
 
@@ -146,6 +146,11 @@ async function bootstrap(): Promise<void> {
   });
 
   await app.whenReady();
+
+  // Expose the secure store bridge on globalThis so the embedded Nitro server
+  // can access encrypted storage without importing Electron modules.
+  globalThis.__wemarkSecureStore = secureStoreBridge;
+  console.log('[Electron] Secure store bridge attached to globalThis');
 
   // Start embedded Nitro server (production mode only)
   if (app.isPackaged) {

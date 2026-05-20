@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   STORE_DELETE: 'store:delete',
   STORE_GET_ENCRYPTED: 'store:getEncrypted',
   STORE_SET_ENCRYPTED: 'store:setEncrypted',
+  STORE_DELETE_ENCRYPTED: 'store:deleteEncrypted',
 
   // File System
   FS_SELECT_DIRECTORY: 'fs:selectDirectory',
@@ -89,6 +90,7 @@ export interface ElectronAPI {
     delete: (key: string) => Promise<StoreResult>;
     getEncrypted: (key: string) => Promise<unknown>;
     setEncrypted: (key: string, value: unknown) => Promise<StoreResult>;
+    deleteEncrypted: (key: string) => Promise<StoreResult>;
   };
 
   /** File system operations. */
