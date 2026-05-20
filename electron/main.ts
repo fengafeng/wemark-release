@@ -1,23 +1,43 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from 'electron';
 import path from 'node:path';
+import Store from 'electron-store';
 import { startNitroServer } from './server';
 import { registerFileSystemHandlers } from './ipc/file-system';
 import { registerStoreHandlers, secureStoreBridge } from './ipc/store';
 import { registerUpdaterHandlers } from './ipc/updater';
 import { createTray } from './tray';
+import { logger } from './utils/logger';
 
 let mainWindow: BrowserWindow | null = null;
 let serverPort: number = 3000;
 let tray: Tray | null = null;
 let isQuitting = false;
 
+// ─── Window State Persistence ──────────────────────────────────────
+
+const windowStateStore = new Store<{
+  bounds: { x: number; y: number; width: number; height: number };
+  isMaximized: boolean;
+}>({
+  name: 'window-state',
+  defaults: {
+    bounds: { x: -1, y: -1, width: 1280, height: 800 },
+    isMaximized: false,
+  },
+});
+
 /**
  * Create the main BrowserWindow.
  */
 function createMainWindow(): BrowserWindow {
+  const savedBounds = windowStateStore.get('bounds');
+  const savedIsMaximized = windowStateStore.get('isMaximized');
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: savedBounds.width,
+    height: savedBounds.height,
+    x: savedBounds.x >= 0 ? savedBounds.x : undefined,
+    y: savedBounds.y >= 0 ? savedBounds.y : undefined,
     minWidth: 960,
     minHeight: 600,
     frame: false,
@@ -33,6 +53,11 @@ function createMainWindow(): BrowserWindow {
     icon: getAppIcon(),
   });
 
+  // Restore maximized state if previously maximized
+  if (savedIsMaximized) {
+    mainWindow.maximize();
+  }
+
   // Load the app
   if (app.isPackaged) {
     // Production: load from Nuxt build output served by embedded Nitro
@@ -42,6 +67,25 @@ function createMainWindow(): BrowserWindow {
     mainWindow.loadURL(`http://localhost:3000`);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
+
+  // Intercept downloads and show save dialog
+  mainWindow.webContents.session.on('will-download', async (event, item) => {
+    event.preventDefault();
+    const defaultPath = item.getFilename();
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: '保存文件',
+      defaultPath,
+      filters: [
+        {
+          name: '所有文件',
+          extensions: ['*'],
+        },
+      ],
+    });
+    if (!result.canceled && result.filePath) {
+      item.setSavePath(result.filePath);
+    }
+  });
 
   // Show window when ready to avoid visual flash
   mainWindow.on('ready-to-show', () => {
@@ -53,6 +97,16 @@ function createMainWindow(): BrowserWindow {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
+    } else {
+      // Save window state on quit
+      try {
+        const bounds = mainWindow!.getBounds();
+        const isMaximized = mainWindow!.isMaximized();
+        windowStateStore.set('bounds', bounds);
+        windowStateStore.set('isMaximized', isMaximized);
+      } catch {
+        // Ignore errors during state save on close
+      }
     }
   });
 
@@ -119,7 +173,7 @@ function registerIpcHandlers(): void {
     return mainWindow?.isMaximized() ?? false;
   });
 
-  // Deep link IPC (placeholder for future use)
+  // Deep link IPC
   ipcMain.on('app:deepLink', (_event, url: string) => {
     mainWindow?.webContents.send('app:deepLink', url);
   });
@@ -129,6 +183,18 @@ function registerIpcHandlers(): void {
  * Bootstrap the Electron application.
  */
 async function bootstrap(): Promise<void> {
+  // Global error handlers
+  process.on('uncaughtException', (error) => {
+    logger.error('[Electron] Uncaught exception:', error);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    logger.error('[Electron] Unhandled rejection:', reason);
+  });
+
+  // Register deep link protocol
+  app.setAsDefaultProtocolClient('wemark');
+
   // Single instance lock
   const gotTheLock = app.requestSingleInstanceLock();
   if (!gotTheLock) {
@@ -136,12 +202,27 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
       mainWindow.focus();
+    }
+
+    // Handle deep link from second instance (Windows/Linux)
+    const deepLinkUrl = argv.find((arg) => arg.startsWith('wemark://'));
+    if (deepLinkUrl) {
+      mainWindow?.webContents.send('app:deepLink', deepLinkUrl);
+    }
+  });
+
+  // Handle deep link on macOS (open-url event)
+  app.on('open-url', (_event, url) => {
+    if (url.startsWith('wemark://')) {
+      if (mainWindow) {
+        mainWindow.webContents.send('app:deepLink', url);
+      }
     }
   });
 
@@ -150,15 +231,15 @@ async function bootstrap(): Promise<void> {
   // Expose the secure store bridge on globalThis so the embedded Nitro server
   // can access encrypted storage without importing Electron modules.
   globalThis.__wemarkSecureStore = secureStoreBridge;
-  console.log('[Electron] Secure store bridge attached to globalThis');
+  logger.info('[Electron] Secure store bridge attached to globalThis');
 
   // Start embedded Nitro server (production mode only)
   if (app.isPackaged) {
     try {
       serverPort = await startNitroServer();
-      console.log(`[Electron] Nitro server started on port ${serverPort}`);
+      logger.info(`[Electron] Nitro server started on port ${serverPort}`);
     } catch (error) {
-      console.error('[Electron] Failed to start Nitro server:', error);
+      logger.error('[Electron] Failed to start Nitro server:', error);
       app.quit();
       return;
     }
@@ -195,11 +276,8 @@ async function bootstrap(): Promise<void> {
   });
 }
 
-// Handle protocol for deep links (placeholder)
-app.setAsDefaultProtocolClient('wemark');
-
 bootstrap().catch((error) => {
-  console.error('[Electron] Bootstrap failed:', error);
+  logger.error('[Electron] Bootstrap failed:', error);
   app.quit();
 });
 

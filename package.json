@@ -13,11 +13,12 @@
     "docker:build": "docker build --build-arg VERSION=$npm_package_version -t ghcr.io/wechat-article/wechat-article-exporter:$npm_package_version .",
     "docker:publish": "docker push ghcr.io/wechat-article/wechat-article-exporter:$npm_package_version",
     "electron:compile": "tsc -p tsconfig.electron.json",
-    "dev:electron": "concurrently \"nuxt dev\" \"wait-on http://localhost:3000 && yarn electron:compile && electron .\"",
-    "build:electron": "nuxt generate && yarn electron:compile && electron-builder",
-    "build:win": "nuxt generate && yarn electron:compile && electron-builder --win",
-    "build:mac": "nuxt generate && yarn electron:compile && electron-builder --mac",
-    "build:linux": "nuxt generate && yarn electron:compile && electron-builder --linux"
+    "dev:electron": "concurrently \"cross-env ELECTRON=true nuxt dev\" \"wait-on http://localhost:3000 && yarn electron:compile && electron .\"",
+    "electron:dev": "yarn dev:electron",
+    "build:electron": "cross-env ELECTRON=true nuxt generate && yarn electron:compile && electron-builder",
+    "build:win": "cross-env ELECTRON=true nuxt generate && yarn electron:compile && electron-builder --win",
+    "build:mac": "cross-env ELECTRON=true nuxt generate && yarn electron:compile && electron-builder --mac",
+    "build:linux": "cross-env ELECTRON=true nuxt generate && yarn electron:compile && electron-builder --linux"
   },
   "dependencies": {
     "@ag-grid-community/locale": "^34.0.0",
@@ -65,6 +66,7 @@
     "@types/file-saver": "^2.0.7",
     "@types/turndown": "^5.0.5",
     "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
     "electron": "^34.0.0",
     "electron-builder": "^25.1.0",
     "electron-store": "^10.0.0",
@@ -83,7 +85,7 @@
     "appId": "com.wemark.desktop",
     "productName": "WeMark",
     "directories": {
-      "output": "dist-electron"
+      "output": "release"
     },
     "files": [
       "dist-electron/electron/**/*",
@@ -111,7 +113,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "wemark",
+      "owner": "fengafeng",
       "repo": "wemark-release"
     }
   }

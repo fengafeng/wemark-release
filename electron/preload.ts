@@ -22,6 +22,9 @@ const electronAPI: ElectronAPI = {
   fs: {
     selectDirectory: () => ipcRenderer.invoke('fs:selectDirectory'),
     openPath: (path: string) => ipcRenderer.invoke('fs:openPath', path),
+    saveFileDialog: (options) => ipcRenderer.invoke('fs:saveFileDialog', options),
+    writeFile: (filePath, base64Data) => ipcRenderer.invoke('fs:writeFile', filePath, base64Data),
+    readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
   },
 
   // --- Updater ---
@@ -53,7 +56,7 @@ const electronAPI: ElectronAPI = {
     isPackaged: () => ipcRenderer.invoke('app:isPackaged'),
   },
 
-  // --- Deep Link (placeholder) ---
+  // --- Deep Link ---
   onDeepLink: (callback: (url: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, url: string) => callback(url);
     ipcRenderer.on('app:deepLink', handler);

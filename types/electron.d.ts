@@ -19,6 +19,9 @@ export const IPC_CHANNELS = {
   // File System
   FS_SELECT_DIRECTORY: 'fs:selectDirectory',
   FS_OPEN_PATH: 'fs:openPath',
+  FS_SAVE_FILE_DIALOG: 'fs:saveFileDialog',
+  FS_WRITE_FILE: 'fs:writeFile',
+  FS_READ_FILE: 'fs:readFile',
 
   // Updater
   UPDATER_CHECK_FOR_UPDATES: 'updater:checkForUpdates',
@@ -77,6 +80,26 @@ export interface OpenPathResult {
   error?: string;
 }
 
+/** Options for the save file dialog. */
+export interface SaveFileDialogOptions {
+  title?: string;
+  defaultPath?: string;
+  filters?: { name: string; extensions: string[] }[];
+}
+
+/** Result of a write file operation. */
+export interface WriteFileResult {
+  success: boolean;
+  error?: string;
+}
+
+/** Result of a read file operation. */
+export interface ReadFileResult {
+  success: boolean;
+  data?: string;
+  error?: string;
+}
+
 // ─── ElectronAPI Interface ─────────────────────────────────────────
 
 export interface ElectronAPI {
@@ -99,6 +122,12 @@ export interface ElectronAPI {
     selectDirectory: () => Promise<string | null>;
     /** Open a file or directory with the system default application. */
     openPath: (path: string) => Promise<OpenPathResult>;
+    /** Open a native save file dialog. Returns the selected file path or null. */
+    saveFileDialog: (options?: SaveFileDialogOptions) => Promise<string | null>;
+    /** Write Base64 data to a file. */
+    writeFile: (filePath: string, base64Data: string) => Promise<WriteFileResult>;
+    /** Read a file and return its contents as Base64. */
+    readFile: (filePath: string) => Promise<ReadFileResult>;
   };
 
   /** Auto-updater controls. */
@@ -121,7 +150,7 @@ export interface ElectronAPI {
     isPackaged: () => Promise<boolean>;
   };
 
-  /** Deep link event listener (placeholder for future use). */
+  /** Deep link event listener. */
   onDeepLink: (callback: (url: string) => void) => () => void;
 
   /** Window controls for frameless window. */

@@ -1,4 +1,6 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { logger } from './utils/logger';
 
 /**
  * Start the embedded Nitro server inside the Electron main process.
@@ -19,14 +21,21 @@ export async function startNitroServer(): Promise<number> {
     'index.mjs',
   );
 
-  console.log(`[Electron/Server] Loading Nitro server from: ${serverEntryPath}`);
+  // Validate that the server entry file exists before attempting to import
+  if (!fs.existsSync(serverEntryPath)) {
+    throw new Error(
+      `Nitro server entry not found at ${serverEntryPath}. The application may not have been built correctly.`,
+    );
+  }
+
+  logger.info(`[Electron/Server] Loading Nitro server from: ${serverEntryPath}`);
 
   let nitroServer: { listen: (port: number) => Promise<{ port: number }> };
   try {
     // Dynamic import of the Nitro production server
     nitroServer = await import(serverEntryPath);
   } catch (error) {
-    console.error('[Electron/Server] Failed to import Nitro server entry:', error);
+    logger.error('[Electron/Server] Failed to import Nitro server entry:', error);
     throw new Error(
       `Failed to load Nitro server from ${serverEntryPath}: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -36,10 +45,10 @@ export async function startNitroServer(): Promise<number> {
   try {
     const listener = await nitroServer.listen(0);
     const actualPort = listener.port;
-    console.log(`[Electron/Server] Nitro server listening on port ${actualPort}`);
+    logger.info(`[Electron/Server] Nitro server listening on port ${actualPort}`);
     return actualPort;
   } catch (error) {
-    console.error('[Electron/Server] Failed to start Nitro server:', error);
+    logger.error('[Electron/Server] Failed to start Nitro server:', error);
     throw new Error(
       `Nitro server listen failed: ${error instanceof Error ? error.message : String(error)}`,
     );
