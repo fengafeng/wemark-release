@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const isElectron = process.env.ELECTRON === 'true';
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-10-30',
   devtools: {
@@ -9,6 +11,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       aggridLicense: process.env.NUXT_AGGRID_LICENSE,
+      isElectron,
       sentry: {
         dsn: process.env.NUXT_SENTRY_DSN,
       },
@@ -64,7 +67,7 @@ export default defineNuxtConfig({
 
   // https://umami.nuxt.dev/api/configuration
   umami: {
-    enabled: true,
+    enabled: !isElectron,
     id: process.env.NUXT_UMAMI_ID,
     host: process.env.NUXT_UMAMI_HOST,
     domains: ['down.mptext.top'],
@@ -72,4 +75,11 @@ export default defineNuxtConfig({
     autoTrack: true,
     logErrors: true,
   },
+
+  // Electron-specific: fixed dev port for electron dev mode
+  ...(isElectron && {
+    devServer: {
+      port: 3000,
+    },
+  }),
 });
