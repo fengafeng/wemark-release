@@ -40,6 +40,8 @@
     "defu": "^6.1.4",
     "dexie": "^4.0.11",
     "dompurify": "^3.2.5",
+    "electron-store": "8",
+    "electron-updater": "^6.3.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "happy-dom": "^20.1.0",
@@ -49,6 +51,7 @@
     "lucide-vue-next": "^0.441.0",
     "mime": "^4.0.4",
     "monaco-editor": "^0.54.0",
+    "node-machine-id": "^1.1.12",
     "nuxt": "^3.12.3",
     "nuxt-monaco-editor": "1.4.0",
     "nuxt-umami": "3.2.1",
@@ -59,9 +62,6 @@
     "v-calendar": "^3.1.2",
     "vue": "^3.5.22",
     "vue-shadow-dom": "^4.2.0",
-    "electron-store": "^10.0.0",
-    "electron-updater": "^6.3.0",
-    "node-machine-id": "^1.1.12",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -109,21 +109,31 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "signingHashAlgorithms": null,
       "signAndEditExecutable": false,
       "protocols": [
         {
           "name": "WeMark",
-          "schemes": ["wemark"]
+          "schemes": [
+            "wemark"
+          ]
         }
       ]
     },
     "linux": {
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     },
     "publish": {
       "provider": "github",
