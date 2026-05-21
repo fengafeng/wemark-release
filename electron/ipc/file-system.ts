@@ -27,12 +27,20 @@ const FORBIDDEN_PATHS = [
   '/Library',
 ];
 
+/** File extensions that are dangerous to open via shell.openPath (executable files). */
+const DANGEROUS_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.vbe', '.wsf', '.wsh', '.msi', '.scr', '.com'];
+
 /**
  * Validate that a file path is safe for operations.
  * Rejects paths that traverse into system directories or outside user-accessible areas.
  */
 function isPathSafe(filePath: string): boolean {
   const resolved = path.resolve(filePath);
+
+  // Block UNC paths (\\server\share) — prevent remote code execution
+  if (resolved.startsWith('\\\\') || filePath.startsWith('\\\\')) {
+    return false;
+  }
 
   // Block system paths
   for (const forbidden of FORBIDDEN_PATHS) {
@@ -43,6 +51,23 @@ function isPathSafe(filePath: string): boolean {
 
   // Block app installation directory
   if (app.isPackaged && resolved.toLowerCase().startsWith(process.resourcesPath.toLowerCase())) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validate that a file path is safe to open via shell.openPath.
+ * In addition to isPathSafe checks, also blocks executable files.
+ */
+function isOpenPathSafe(filePath: string): boolean {
+  if (!isPathSafe(filePath)) {
+    return false;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  if (DANGEROUS_EXTENSIONS.includes(ext)) {
     return false;
   }
 
@@ -64,8 +89,8 @@ export function registerFileSystemHandlers(): void {
   });
 
   ipcMain.handle('fs:openPath', async (_event, filePath: string) => {
-    if (!isPathSafe(filePath)) {
-      return { success: false, error: 'Access denied: path is in a restricted area' };
+    if (!isOpenPathSafe(filePath)) {
+      return { success: false, error: 'Access denied: path is restricted or contains dangerous file type' };
     }
     try {
       await shell.openPath(filePath);

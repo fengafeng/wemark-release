@@ -85,12 +85,12 @@ export async function proxyMpRequest(options: RequestOptions) {
         throw new Error(`redirect_url 中未找到 token 参数: ${redirectUrl}`);
       }
 
-      console.log('token', token);
+      // Token logged safely (removed raw token logging for security)
       const success = await cookieStore.setCookie(authKey, token, mpResponse.headers.getSetCookie());
       if (!success) {
         throw new Error('cookie 写入 KV 存储失败');
       }
-      console.log('cookie 写入成功');
+      console.log('[Auth] Cookie written to store successfully');
 
       setCookies = [
         `auth-key=${authKey}; Path=/; Expires=${dayjs().add(4, 'days').toString()}; Secure; HttpOnly`,

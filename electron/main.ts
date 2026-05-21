@@ -106,6 +106,16 @@ function createMainWindow(): BrowserWindow {
     mainWindow?.webContents.send('window:maximizeChange', false);
   });
 
+  // Security: prevent navigation away from the app (anti-phishing / anti-XSS)
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
+  });
+
+  // Security: prevent new windows from being opened
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
   // Minimize to tray instead of closing (unless app is quitting)
   mainWindow.on('close', (event) => {
     if (!isQuitting) {

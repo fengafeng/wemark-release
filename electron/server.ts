@@ -30,7 +30,7 @@ export async function startNitroServer(): Promise<number> {
 
   logger.info(`[Electron/Server] Loading Nitro server from: ${serverEntryPath}`);
 
-  let nitroServer: { listen: (port: number) => Promise<{ port: number }> };
+  let nitroServer: { listen: (port: number, opts?: { host?: string }) => Promise<{ port: number }> };
   try {
     // Dynamic import of the Nitro production server
     nitroServer = await import(serverEntryPath);
@@ -41,11 +41,11 @@ export async function startNitroServer(): Promise<number> {
     );
   }
 
-  // Start listening on a dynamic port (port 0 = OS assigns a free port)
+  // Start listening on localhost only (security: prevent LAN access to internal APIs)
   try {
-    const listener = await nitroServer.listen(0);
+    const listener = await nitroServer.listen(0, { host: '127.0.0.1' });
     const actualPort = listener.port;
-    logger.info(`[Electron/Server] Nitro server listening on port ${actualPort}`);
+    logger.info(`[Electron/Server] Nitro server listening on 127.0.0.1:${actualPort}`);
     return actualPort;
   } catch (error) {
     logger.error('[Electron/Server] Failed to start Nitro server:', error);
