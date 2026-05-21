@@ -15,10 +15,12 @@ let isQuitting = false;
 
 // ─── Window State Persistence ──────────────────────────────────────
 
-const windowStateStore = new Store<{
+type WindowStateSchema = {
   bounds: { x: number; y: number; width: number; height: number };
   isMaximized: boolean;
-}>({
+};
+
+const windowStateStore = new Store<WindowStateSchema>({
   name: 'window-state',
   defaults: {
     bounds: { x: -1, y: -1, width: 1280, height: 800 },
@@ -26,12 +28,15 @@ const windowStateStore = new Store<{
   },
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const wsAny = windowStateStore as any;
+
 /**
  * Create the main BrowserWindow.
  */
 function createMainWindow(): BrowserWindow {
-  const savedBounds = windowStateStore.get('bounds');
-  const savedIsMaximized = windowStateStore.get('isMaximized');
+  const savedBounds = wsAny.get('bounds') as WindowStateSchema['bounds'];
+  const savedIsMaximized = wsAny.get('isMaximized') as boolean;
 
   mainWindow = new BrowserWindow({
     width: savedBounds.width,
@@ -102,8 +107,8 @@ function createMainWindow(): BrowserWindow {
       try {
         const bounds = mainWindow!.getBounds();
         const isMaximized = mainWindow!.isMaximized();
-        windowStateStore.set('bounds', bounds);
-        windowStateStore.set('isMaximized', isMaximized);
+        wsAny.set('bounds', bounds);
+        wsAny.set('isMaximized', isMaximized);
       } catch {
         // Ignore errors during state save on close
       }
@@ -120,7 +125,7 @@ function createMainWindow(): BrowserWindow {
 /**
  * Get the application icon path.
  */
-function getAppIcon(): nativeImage | undefined {
+function getAppIcon(): ReturnType<typeof nativeImage.createFromPath> | undefined {
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, 'icon.png')
     : path.join(__dirname, '..', 'public', 'favicon.ico');

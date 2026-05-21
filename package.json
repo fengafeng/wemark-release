@@ -106,7 +106,9 @@
       "target": ["dmg", "zip"]
     },
     "win": {
-      "target": ["nsis"]
+      "target": ["nsis"],
+      "signingHashAlgorithms": null,
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": ["AppImage", "deb"]

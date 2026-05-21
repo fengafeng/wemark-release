@@ -4,14 +4,20 @@ import { machineIdSync } from 'node-machine-id';
 import { decrypt, deriveKey, encrypt } from '../utils/crypto';
 import type { EncryptedData } from '../../types/secure-store';
 
+type StoreSchema = Record<string, unknown>;
+
 /**
  * Persistent key-value store backed by electron-store.
  * Data is stored in the user's app data directory as a JSON file.
  */
-const store = new ElectronStore({
+const store = new ElectronStore<StoreSchema>({
   name: 'wemark-store',
   defaults: {},
 });
+
+// Cast to any to bypass overly strict generic constraints from Conf v10+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const storeAny = store as any;
 
 /** Salt used for PBKDF2 key derivation. Tied to the encryption scheme version. */
 const ENCRYPTION_SALT = 'wemark-secure-store-salt-v1';
@@ -32,7 +38,7 @@ export const secureStoreBridge = {
   async getEncrypted(key: string): Promise<unknown> {
     try {
       const storeKey = `${ENCRYPTED_KEY_PREFIX}${key}`;
-      const encrypted = store.get(storeKey) as EncryptedData | undefined;
+      const encrypted = storeAny.get(storeKey) as EncryptedData | undefined;
       if (!encrypted) return undefined;
       const plaintext = decrypt(encrypted, encryptionKey);
       return JSON.parse(plaintext);
@@ -47,7 +53,7 @@ export const secureStoreBridge = {
       const storeKey = `${ENCRYPTED_KEY_PREFIX}${key}`;
       const plaintext = JSON.stringify(value);
       const encrypted = encrypt(plaintext, encryptionKey);
-      store.set(storeKey, encrypted);
+      storeAny.set(storeKey, encrypted);
       return { success: true };
     } catch (error) {
       console.error(`[SecureBridge/setEncrypted] Failed for key "${key}":`, error);
@@ -61,7 +67,7 @@ export const secureStoreBridge = {
   async deleteEncrypted(key: string): Promise<{ success: boolean; error?: string }> {
     try {
       const storeKey = `${ENCRYPTED_KEY_PREFIX}${key}`;
-      store.delete(storeKey);
+      storeAny.delete(storeKey);
       return { success: true };
     } catch (error) {
       console.error(`[SecureBridge/deleteEncrypted] Failed for key "${key}":`, error);
@@ -89,7 +95,7 @@ export const secureStoreBridge = {
 export function registerStoreHandlers(): void {
   ipcMain.handle('store:get', async (_event, key: string) => {
     try {
-      return store.get(key);
+      return storeAny.get(key);
     } catch (error) {
       console.error(`[IPC/store:get] Failed to get key "${key}":`, error);
       return undefined;
@@ -98,7 +104,7 @@ export function registerStoreHandlers(): void {
 
   ipcMain.handle('store:set', async (_event, key: string, value: unknown) => {
     try {
-      store.set(key, value);
+      storeAny.set(key, value);
       return { success: true };
     } catch (error) {
       console.error(`[IPC/store:set] Failed to set key "${key}":`, error);
@@ -111,7 +117,7 @@ export function registerStoreHandlers(): void {
 
   ipcMain.handle('store:delete', async (_event, key: string) => {
     try {
-      store.delete(key);
+      storeAny.delete(key);
       return { success: true };
     } catch (error) {
       console.error(`[IPC/store:delete] Failed to delete key "${key}":`, error);

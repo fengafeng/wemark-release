@@ -14,7 +14,7 @@ import path from 'node:path';
  */
 export function createTray(mainWindow: BrowserWindow): Tray {
   const iconPath = getTrayIconPath();
-  let trayIcon: nativeImage;
+  let trayIcon: ReturnType<typeof nativeImage.createFromPath>;
   try {
     trayIcon = nativeImage.createFromPath(iconPath);
     // On macOS, use template image for proper dark/light mode support
