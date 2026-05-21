@@ -1,4 +1,4 @@
-import { dialog, ipcMain, shell } from 'electron';
+import { app, dialog, ipcMain, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -9,9 +9,46 @@ import path from 'node:path';
  * - `fs:selectDirectory` — Opens a native directory selection dialog
  * - `fs:openPath` — Opens a file or directory with the system default application
  * - `fs:saveFileDialog` — Opens a native save file dialog
- * - `fs:writeFile` — Writes Base64 data to a file
- * - `fs:readFile` — Reads a file and returns its contents as Base64
+ * - `fs:writeFile` — Writes Base64 data to a file (must go through saveFileDialog first)
+ * - `fs:readFile` — Reads a file and returns its contents as Base64 (restricted paths)
  */
+
+/** Paths that are forbidden for file operations (system directories). */
+const FORBIDDEN_PATHS = [
+  'C:\\Windows',
+  'C:\\Program Files',
+  'C:\\Program Files (x86)',
+  'C:\\ProgramData',
+  '/usr',
+  '/bin',
+  '/sbin',
+  '/etc',
+  '/System',
+  '/Library',
+];
+
+/**
+ * Validate that a file path is safe for operations.
+ * Rejects paths that traverse into system directories or outside user-accessible areas.
+ */
+function isPathSafe(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+
+  // Block system paths
+  for (const forbidden of FORBIDDEN_PATHS) {
+    if (resolved.toLowerCase().startsWith(forbidden.toLowerCase())) {
+      return false;
+    }
+  }
+
+  // Block app installation directory
+  if (app.isPackaged && resolved.toLowerCase().startsWith(process.resourcesPath.toLowerCase())) {
+    return false;
+  }
+
+  return true;
+}
+
 export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:selectDirectory', async () => {
     const result = await dialog.showOpenDialog({
@@ -27,6 +64,9 @@ export function registerFileSystemHandlers(): void {
   });
 
   ipcMain.handle('fs:openPath', async (_event, filePath: string) => {
+    if (!isPathSafe(filePath)) {
+      return { success: false, error: 'Access denied: path is in a restricted area' };
+    }
     try {
       await shell.openPath(filePath);
       return { success: true };
@@ -60,6 +100,9 @@ export function registerFileSystemHandlers(): void {
   );
 
   ipcMain.handle('fs:writeFile', async (_event, filePath: string, base64Data: string) => {
+    if (!isPathSafe(filePath)) {
+      return { success: false, error: 'Access denied: path is in a restricted area' };
+    }
     try {
       const buffer = Buffer.from(base64Data, 'base64');
       const dir = path.dirname(filePath);
@@ -78,6 +121,9 @@ export function registerFileSystemHandlers(): void {
   });
 
   ipcMain.handle('fs:readFile', async (_event, filePath: string) => {
+    if (!isPathSafe(filePath)) {
+      return { success: false, error: 'Access denied: path is in a restricted area' };
+    }
     try {
       if (!fs.existsSync(filePath)) {
         return { success: false, error: 'File not found' };

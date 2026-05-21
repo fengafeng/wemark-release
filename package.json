@@ -12,7 +12,7 @@
     "postinstall": "nuxt prepare",
     "docker:build": "docker build --build-arg VERSION=$npm_package_version -t ghcr.io/wechat-article/wechat-article-exporter:$npm_package_version .",
     "docker:publish": "docker push ghcr.io/wechat-article/wechat-article-exporter:$npm_package_version",
-    "electron:compile": "tsc -p tsconfig.electron.json",
+    "electron:compile": "tsc -p tsconfig.electron.json && node scripts/fix-dist-type.cjs",
     "dev:electron": "concurrently \"cross-env ELECTRON=true nuxt dev\" \"wait-on http://localhost:3000 && yarn electron:compile && electron .\"",
     "electron:dev": "yarn dev:electron",
     "build:electron": "cross-env ELECTRON=true nuxt generate && yarn electron:compile && electron-builder",
@@ -84,10 +84,12 @@
   "build": {
     "appId": "com.wemark.desktop",
     "productName": "WeMark",
+    "npmRebuild": false,
     "directories": {
       "output": "release"
     },
     "files": [
+      "dist-electron/package.json",
       "dist-electron/electron/**/*",
       ".output/public/**/*"
     ],
@@ -99,6 +101,10 @@
       {
         "from": "public/favicon.ico",
         "to": "tray-icon.png"
+      },
+      {
+        "from": "public/favicon.ico",
+        "to": "icon.png"
       }
     ],
     "mac": {
@@ -108,7 +114,13 @@
     "win": {
       "target": ["nsis"],
       "signingHashAlgorithms": null,
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "protocols": [
+        {
+          "name": "WeMark",
+          "schemes": ["wemark"]
+        }
+      ]
     },
     "linux": {
       "target": ["AppImage", "deb"]

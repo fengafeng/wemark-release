@@ -97,6 +97,15 @@ function createMainWindow(): BrowserWindow {
     mainWindow?.show();
   });
 
+  // Forward maximize/unmaximize state changes to renderer
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window:maximizeChange', true);
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window:maximizeChange', false);
+  });
+
   // Minimize to tray instead of closing (unless app is quitting)
   mainWindow.on('close', (event) => {
     if (!isQuitting) {

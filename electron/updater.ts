@@ -23,6 +23,7 @@ export function initUpdater(): void {
 
   autoUpdater.on('update-not-available', () => {
     console.log('[Updater] No update available');
+    forwardToRenderer('updater:update-not-available');
   });
 
   autoUpdater.on('download-progress', (progressInfo) => {
