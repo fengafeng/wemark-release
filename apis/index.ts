@@ -15,6 +15,7 @@ import type {
 } from '~/types/types';
 
 const loginAccount = useLoginAccount();
+const { removeAccount, activeAccount } = useLoginAccountManager();
 const credentials = useLocalStorage<ParsedCredential[]>('auto-detect-credentials:credentials', []);
 
 /**
@@ -64,7 +65,13 @@ export async function getArticleList(
     });
     return [articles, isCompleted, publish_page.total_count];
   } else if (resp.base_resp.ret === 200003) {
-    loginAccount.value = null;
+    // Session expired — remove from multi-account system to keep in sync
+    const active = activeAccount.value;
+    if (active) {
+      await removeAccount(active.id);
+    } else {
+      loginAccount.value = null;
+    }
     throw new Error('session expired');
   } else {
     throw new Error(`${resp.base_resp.ret}:${resp.base_resp.err_msg}`);
@@ -92,7 +99,13 @@ export async function getAccountList(begin = 0, keyword = ''): Promise<[AccountI
 
     return [resp.list, isCompleted];
   } else if (resp.base_resp.ret === 200003) {
-    loginAccount.value = null;
+    // Session expired — remove from multi-account system to keep in sync
+    const active = activeAccount.value;
+    if (active) {
+      await removeAccount(active.id);
+    } else {
+      loginAccount.value = null;
+    }
     throw new Error('session expired');
   } else {
     throw new Error(`${resp.base_resp.ret}:${resp.base_resp.err_msg}`);

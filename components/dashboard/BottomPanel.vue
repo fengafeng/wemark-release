@@ -7,6 +7,7 @@ import { IMAGE_PROXY } from '~/config';
 import type { LogoutResponse } from '~/types/types';
 
 const loginAccount = useLoginAccount();
+const { removeAccount, accounts, activeAccount, init: initMultiAccount } = useLoginAccountManager();
 const modal = useModal();
 
 const now = ref(new Date());
@@ -81,7 +82,13 @@ async function logout() {
   logoutBtnLoading.value = true;
   const { statusCode, statusText } = await request<LogoutResponse>('/api/web/mp/logout');
   if (statusCode === 200) {
-    loginAccount.value = null;
+    // Remove from multi-account system first, which also syncs loginAccount ref
+    const active = activeAccount.value;
+    if (active) {
+      await removeAccount(active.id);
+    } else {
+      loginAccount.value = null;
+    }
   } else {
     alert(statusText);
   }
@@ -89,7 +96,9 @@ async function logout() {
 }
 
 let timer: number;
-onMounted(() => {
+onMounted(async () => {
+  // Ensure multi-account system is initialized for logout sync
+  await initMultiAccount();
   timer = window.setInterval(() => {
     now.value = new Date();
   }, 1000);

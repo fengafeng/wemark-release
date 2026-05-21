@@ -10,14 +10,20 @@ const msg = ref('');
 
 const checkTimer = ref<number | null>(null);
 
+// Max consecutive poll errors before giving up
+const MAX_POLL_ERRORS = 5;
+const pollErrorCount = ref(0);
+
 const loginAccount = useLoginAccount();
-const { addAccount } = useLoginAccountManager();
+const { addAccount, init: initMultiAccount } = useLoginAccountManager();
 
 const emit = defineEmits<{
   (e: 'login-success', account: LoginAccount): void;
 }>();
 
-onMounted(() => {
+onMounted(async () => {
+  // Ensure multi-account system is initialized before any login attempt
+  await initMultiAccount();
   getQrcode();
 });
 
@@ -46,6 +52,7 @@ async function getQrcode() {
   try {
     loading.value = true;
     msg.value = '获取登录二维码';
+    pollErrorCount.value = 0;
     await newLoginSession();
     qrcodeSrc.value = `/api/web/login/getqrcode?rnd=${Math.random()}`;
     msg.value = '';
@@ -70,39 +77,56 @@ function _check() {
 
 // 检查二维码扫描状态
 async function checkQrcodeStatus() {
-  const resp = await request<ScanLoginResult>('/api/web/login/scan');
-  if (resp && resp.base_resp && resp.base_resp.ret === 0) {
-    switch (resp.status) {
-      case 0:
-        _check();
-        break;
-      case 1:
-        // 登录成功
-        msg.value = '已确认，正在登录中';
-        await bizLogin();
-        break;
-      case 2:
-      case 3:
-        // 刷新二维码
-        qrcodeSrc.value = `/api/web/login/getqrcode?rnd=${Math.random()}`;
-        _check();
-        break;
-      case 4:
-      case 6:
-        if (resp.acct_size >= 1) {
-          loading.value = true;
-          msg.value = '扫码成功，等待确认';
-          qrcodeSrc.value = '';
-        } else {
-          msg.value = '没有可登录账号';
-        }
-        _check();
-        break;
-      case 5:
-        // 未绑定邮箱，不能扫描登录
-        msg.value = '该账号尚未绑定邮箱';
-        _check();
-        break;
+  try {
+    const resp = await request<ScanLoginResult>('/api/web/login/scan');
+    // Reset error count on successful response
+    pollErrorCount.value = 0;
+    if (resp && resp.base_resp && resp.base_resp.ret === 0) {
+      switch (resp.status) {
+        case 0:
+          _check();
+          break;
+        case 1:
+          // 登录成功
+          msg.value = '已确认，正在登录中';
+          await bizLogin();
+          break;
+        case 2:
+        case 3:
+          // 刷新二维码
+          qrcodeSrc.value = `/api/web/login/getqrcode?rnd=${Math.random()}`;
+          _check();
+          break;
+        case 4:
+        case 6:
+          if (resp.acct_size >= 1) {
+            loading.value = true;
+            msg.value = '扫码成功，等待确认';
+            qrcodeSrc.value = '';
+          } else {
+            msg.value = '没有可登录账号';
+          }
+          _check();
+          break;
+        case 5:
+          // 未绑定邮箱，不能扫描登录
+          msg.value = '该账号尚未绑定邮箱';
+          _check();
+          break;
+      }
+    } else if (resp && resp.base_resp && resp.base_resp.ret !== 0) {
+      msg.value = resp.base_resp.err_msg || '扫码状态检查失败';
+      _check();
+    }
+  } catch (e: any) {
+    // Network or other error — log and decide whether to continue polling
+    console.error('[Login] checkQrcodeStatus error:', e);
+    pollErrorCount.value++;
+    if (pollErrorCount.value >= MAX_POLL_ERRORS) {
+      msg.value = `扫码状态检查连续失败 ${MAX_POLL_ERRORS} 次，请关闭重试`;
+    } else {
+      msg.value = `扫码状态检查异常: ${e.message || '未知错误'}，重试中...`;
+      _check();
     }
   }
 }
@@ -120,8 +144,9 @@ async function bizLogin() {
     msg.value = '登录成功';
     loginAccount.value = resp;
 
-    // Add to multi-account system (use nickname as a fallback identifier since authKey is server-managed)
-    await addAccount('', resp);
+    // Use authKey from response body (HttpOnly cookie is not readable from JS)
+    const authKey = resp.authKey || '';
+    await addAccount(authKey, resp);
 
     // Emit login-success event
     emit('login-success', resp);

@@ -53,6 +53,7 @@ export default defineEventHandler(async event => {
   const body = JSON.stringify({
     nickname: nick_name,
     avatar: head_img,
+    authKey,
     expires: dayjs().add(4, 'days').toString(),
   });
   const headers = new Headers(response.headers);
