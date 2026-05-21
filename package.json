@@ -59,6 +59,9 @@
     "v-calendar": "^3.1.2",
     "vue": "^3.5.22",
     "vue-shadow-dom": "^4.2.0",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.0",
+    "node-machine-id": "^1.1.12",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -69,9 +72,6 @@
     "cross-env": "^7.0.3",
     "electron": "^34.0.0",
     "electron-builder": "^25.1.0",
-    "electron-store": "^10.0.0",
-    "electron-updater": "^6.3.0",
-    "node-machine-id": "^1.1.12",
     "prettier": "^3.5.2",
     "tailwindcss-debug-screens": "^2.2.1",
     "typescript": "^5.5.3",
